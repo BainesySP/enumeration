@@ -63,6 +63,10 @@ else
     done
 fi
 
+# ------------------- COMMAND HISTORY CHECK -------------------
+log "\n[+] Checking Command History for Sensitive Information:"
+grep -E "password|passwd|token|apikey|secret" ~/.bash_history ~/.zsh_history 2>/dev/null | tee -a "$LOG_FILE"
+
 # ------------------- KERNEL EXPLOIT SUGGESTIONS -------------------
 log "\n[+] Searching for Known Kernel Exploits:"
 curl -s "https://www.exploit-db.com/search?text=$KERNEL_VERSION" | grep -o 'CVE-[0-9]\{4\}-[0-9]\{4,5\}' | sort -u | tee -a "$LOG_FILE"
