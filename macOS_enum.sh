@@ -11,7 +11,7 @@ log() {
     echo -e "[$(date '+%Y-%m-%d %H:%M:%S')] $1" | tee -a "$LOG_FILE"
 }
 
-log "[*] Running enhanced MacOS privilege escalation enumeration script..."
+log "[*] Running enhanced macOS privilege escalation enumeration script..."
 log "[*] Results will be saved in $LOG_FILE"
 
 # ------------------- SYSTEM ENUMERATION -------------------
@@ -63,7 +63,7 @@ fi
 log "\n[+] Searching for Known Kernel Exploits:"
 curl -s "https://www.exploit-db.com/search?text=macOS+$KERNEL_VERSION" | grep -o 'CVE-[0-9]\{4\}-[0-9]\{4,5\}' | sort -u | tee -a "$LOG_FILE"
 
-# ------------------- CRON JOB EXPLOIT CHECK -------------------
+# ------------------- CRON JOB & LAUNCHD CHECK -------------------
 log "\n[+] Checking for Scheduled Cron Jobs:"
 CRON_JOBS=$(crontab -l 2>/dev/null; cat /etc/crontab /etc/periodic/*/* 2>/dev/null)
 
@@ -78,6 +78,9 @@ if [[ -n "$CRON_JOBS" ]]; then
 else
     log "[-] No cron jobs found."
 fi
+
+log "\n[+] Checking for Launch Daemons and Agents:"
+find /Library/LaunchDaemons /Library/LaunchAgents -type f -perm -2 2>/dev/null | tee -a "$LOG_FILE"
 
 # ------------------- SUID & SGID BINARY CHECK -------------------
 log "\n[+] Searching for SUID binaries:"
@@ -100,6 +103,14 @@ find /etc -type f -perm -g=w,o=w 2>/dev/null | tee -a "$LOG_FILE"
 
 log "\n[+] Searching for Writable Root-Owned Scripts:"
 find /usr/local/bin /usr/bin /bin /sbin -type f -perm -002 -user root 2>/dev/null | tee -a "$LOG_FILE"
+
+# ------------------- SECURETOKEN CHECK -------------------
+log "\n[+] Checking SecureToken Status:"
+defaults read /var/db/dslocal/nodes/Default/users/* | grep SecureToken 2>/dev/null | tee -a "$LOG_FILE"
+
+# ------------------- ENUMERATE ROOT PROCESSES -------------------
+log "\n[+] Checking for Running Root Processes:"
+ps aux | grep root | tee -a "$LOG_FILE"
 
 # ------------------- ENUMERATION COMPLETED -------------------
 log "\n[+] Enumeration completed. Check results in: $LOG_FILE"
