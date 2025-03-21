@@ -142,14 +142,14 @@ fi
 
 # ------------------- SUDO PRIVILEGE ESCALATION CHECKS -------------------
 log "${YELLOW}\n[+] Checking Sudo Capabilities:${NC}"
-SUDO_CMDS=$(sudo -l 2>/dev/null)
+SUDO_CMDS=$(sudo -n -l 2>/dev/null)
 
 if [[ -z "$SUDO_CMDS" ]]; then
     log "${RED}[-] No sudo privileges detected.${NC}"
 else
     log "$SUDO_CMDS"
 
-    if sudo -l | grep -q "NOPASSWD"; then
+    if sudo -n -l 2>/dev/null | grep -q "NOPASSWD"; then
         log "${GREEN}[!] Some sudo commands can be run without a password!${NC}"
     fi
 
