@@ -316,6 +316,24 @@ echo \"$WRITABLE_SSH_DIRS\" | tee -a \"$LOG_FILE\"
 if [[ -n \"$WRITABLE_SSH_DIRS\" ]]; then
     log \"${GREEN}[+] TIP:${NC} Writable .ssh directories found. You may be able to implant your own public key and access the account without password!\"\nfi
 
+log "${YELLOW}\n[+] Checking for Writable authorized_keys Files (Persistence Vectors):${NC}"
+WRITABLE_AUTH_KEYS=$(find /home -type f -name "authorized_keys" -perm -o+w 2>/dev/null)
+
+if [[ -n "$WRITABLE_AUTH_KEYS" ]]; then
+    echo "$WRITABLE_AUTH_KEYS" | tee -a "$LOG_FILE"
+    log "${GREEN}[+] TIP:${NC} Writable authorized_keys files found!"
+    log "${GREEN}    You can implant your own public key for persistent access to these accounts without passwords.${NC}"
+else
+    log "${YELLOW}[-] No writable authorized_keys files found.${NC}"
+    log "${YELLOW}[+] TIP:${NC} If you gain write access to a user’s home later, consider adding a public key to ~/.ssh/authorized_keys for backdoor access.${NC}"
+fi
+
+for FILE in $WRITABLE_AUTH_KEYS; do
+    OWNER=$(stat -c '%U' "$FILE")
+    if id -u "$OWNER" 2>/dev/null | grep -q '^0$'; then
+        log "${RED}[!] WARNING:${NC} Writable authorized_keys for root! That’s game over if exploited properly."
+    fi
+done
 
 # ------------------- CREDENTIAL DISCOVERY -------------------
 log "${YELLOW}\n[+] Checking logs for sensitive information (passwords, tokens, API keys):${NC}"
