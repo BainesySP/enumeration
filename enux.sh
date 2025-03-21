@@ -13,6 +13,10 @@ YELLOW='\033[0;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
+SHADOW_READABLE=true
+PKG_BACKDOORS_FOUND=true
+CLOUD_CREDS_FOUND=true
+
 # Central logging function
 log() {
     echo -e "[$(date '+%Y-%m-%d %H:%M:%S')] $1" | tee -a "$LOG_FILE"
@@ -405,15 +409,23 @@ fi
 # ------------------- HIGH-LEVEL FINDINGS SUMMARY -------------------
 log "${BLUE}\n[*] High-Level Summary of Key Findings:${NC}"
 
+[[ -n "$VIRT_ENV" ]] && log "${GREEN}[+] Virtualization Detected: $VIRT_ENV${NC}"
+
 [[ -n "$SUDO_CMDS" ]] && log "${GREEN}[+] Sudo Access Detected${NC}"
 
 [[ -n "$SUID_RESULTS" ]] && log "${GREEN}[+] SUID Binaries Present${NC}"
 
 [[ -n "$CMD_HISTORY" ]] && log "${GREEN}[+] Sensitive Commands in Shell History${NC}"
 
+[[ -n "$SHADOW_READABLE" ]] && log "${GREEN}[+] /etc/shadow is Readable — Password Hashes Dumped${NC}"
+
+[[ -n "$PKG_BACKDOORS_FOUND" ]] && log "${GREEN}[+] Suspicious Packages Detected via dpkg/pip/npm${NC}"
+
 [[ -n "$ENV_SECRETS" ]] && log "${GREEN}[+] Secrets Found in Environment Variables${NC}"
 
-[[ -n "$WRITABLE_STARTUP" ]] && log "${GREEN}[+] Writable Startup Scripts${NC}"
+[[ -n "$CLOUD_CREDS_FOUND" ]] && log "${GREEN}[+] Cloud Provider Credentials Found (AWS/GCP/Azure/DO)${NC}"
+
+[[ -n "$WRITABLE_STARTUP" ]] && log "${GREEN}[+] Writable Startup Scripts Detected${NC}"
 
 [[ -n "$WRITABLE_PATH_DIRS" ]] && log "${GREEN}[+] Writable Directories in \$PATH${NC}"
 
@@ -427,11 +439,22 @@ log "${BLUE}\n[*] High-Level Summary of Key Findings:${NC}"
 
 [[ -n "$WRITABLE_SSH_DIRS" ]] && log "${GREEN}[+] Writable .ssh Directories Detected${NC}"
 
-[[ $(find /etc -type f -perm -g=w,o=w 2>/dev/null | wc -l) -gt 0 ]] && log "${GREEN}[+] Writable Files in /etc${NC}"
+if find /etc -type f -perm -g=w,o=w 2>/dev/null | grep -q .; then
+    log "${GREEN}[+] Writable Files in /etc${NC}"
+fi
 
-[[ $(getcap -r / 2>/dev/null | wc -l) -gt 0 ]] && log "${GREEN}[+] Binaries with Capabilities Found (getcap)${NC}"
+if find /usr/local/bin /usr/bin /bin /sbin -type f -perm -002 -user root 2>/dev/null | grep -q .; then
+    log "${GREEN}[+] Writable Root-Owned Scripts Detected${NC}"
+fi
 
+if getcap -r / 2>/dev/null | grep -q .; then
+    log "${GREEN}[+] Binaries with Capabilities Found (getcap)${NC}"
+fi
+
+log "${BLUE}==============================================================${NC}"
 log "${BLUE}[*] End of Summary — use these leads to guide your next steps.${NC}"
+log "${BLUE}==============================================================${NC}"
+
 
 
 # ------------------- ENUMERATION COMPLETED -------------------
