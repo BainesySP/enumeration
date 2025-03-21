@@ -21,8 +21,9 @@ NETWORK_WEB=""
 NETWORK_DB=""
 NETWORK_PUBLIC_LISTEN=""
 SOCKETS_FOUND=""
-
-
+WRITABLE_CRONS_FOUND=""
+HIGH_ENTROPY_FOUND=""
+CUSTOM_ROOT_PROC_FOUND=""
 
 # Central logging function
 log() {
@@ -266,6 +267,7 @@ if [[ -n "$CRON_JOBS" ]]; then
     
     if [[ -n "$WRITABLE_CRON_SCRIPTS" ]]; then
         log "$WRITABLE_CRON_SCRIPTS"
+        WRITABLE_CRONS_FOUND=true
     fi
 else
     log "${RED}[-] No cron jobs found.${NC}"
@@ -346,6 +348,10 @@ grep -rniE "password|passwd|token|apikey|secret|bearer|authorization|jwt" /var/l
 
 log "${YELLOW}\n[+] Looking for high-entropy strings (potential secrets):${NC}"
 find /var/log /etc /opt /home -type f -exec grep -Eo '[A-Za-z0-9+/]{30,}' {} \; 2>/dev/null | sort -u | tee -a "$LOG_FILE"
+
+if find /var/log /etc /opt /home -type f -exec grep -Eo '[A-Za-z0-9+/]{30,}' {} \; 2>/dev/null | grep -q .; then
+    HIGH_ENTROPY_FOUND=true
+fi
 
 if grep -rniE "password|passwd|token|apikey|secret|bearer|authorization|jwt" /var/log /etc /opt /home/*/.bash_history 2>/dev/null | grep -q .; then
     log "${GREEN}\n[+] TIP:${NC} Sensitive credentials or tokens were found in readable files or logs."
@@ -437,6 +443,7 @@ log "${YELLOW}\n[+] Checking for suspicious root-owned background processes:${NC
 ROOT_PROCS=$(ps -U root -u root u | grep -vE '(^root.*(sshd|bash|systemd|init|kthreadd|ps|grep))')
 
 if [[ -n "$ROOT_PROCS" ]]; then
+    CUSTOM_ROOT_PROC_FOUND=true
     echo "$ROOT_PROCS" | tee -a "$LOG_FILE"
     log "${GREEN}\n[+] TIP:${NC} Found root processes using possibly non-standard binaries. These could be misconfigured services or exploitable scripts."
     log "${GREEN}    Trace the binary path and check for writable files, custom scripts, or unexpected behavior (e.g., home-grown daemons).${NC}"
@@ -535,6 +542,11 @@ fi
 
 [[ -n "$AUTH_KEYS_WRITABLE" ]] && log "${GREEN}[+] Writable authorized_keys Files Found — Possible Backdoor/Persistence Vector${NC}"
 
+[[ -n "$WRITABLE_CRONS_FOUND" ]] && log "${GREEN}[+] Writable Cron Jobs or Scripts Found — Possible Code Execution Path${NC}"
+
+[[ -n "$HIGH_ENTROPY_FOUND" ]] && log "${GREEN}[+] High-Entropy Strings Found — May Contain API Keys, JWTs, or Secrets${NC}"
+
+[[ -n "$CUSTOM_ROOT_PROC_FOUND" ]] && log "${GREEN}[+] Non-standard Root-Owned Background Processes Detected — Investigate Binaries or Services${NC}"
 
 if find /etc -type f -perm -g=w,o=w 2>/dev/null | grep -q .; then
     log "${GREEN}[+] Writable Files in /etc${NC}"
