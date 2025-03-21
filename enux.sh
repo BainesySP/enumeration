@@ -328,12 +328,12 @@ else
     log "${YELLOW}[+] TIP:${NC} If you gain write access to a user’s home later, consider adding a public key to ~/.ssh/authorized_keys for backdoor access.${NC}"
 fi
 
-for FILE in $WRITABLE_AUTH_KEYS; do
+while IFS= read -r FILE; do
     OWNER=$(stat -c '%U' "$FILE")
     if id -u "$OWNER" 2>/dev/null | grep -q '^0$'; then
         log "${RED}[!] WARNING:${NC} Writable authorized_keys for root! That’s game over if exploited properly."
     fi
-done
+done <<< "$WRITABLE_AUTH_KEYS"
 
 if [[ -n "$WRITABLE_AUTH_KEYS" ]]; then
     AUTH_KEYS_WRITABLE=true
