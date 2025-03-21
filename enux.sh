@@ -335,6 +335,11 @@ for FILE in $WRITABLE_AUTH_KEYS; do
     fi
 done
 
+if [[ -n "$WRITABLE_AUTH_KEYS" ]]; then
+    AUTH_KEYS_WRITABLE=true
+fi
+
+
 # ------------------- CREDENTIAL DISCOVERY -------------------
 log "${YELLOW}\n[+] Checking logs for sensitive information (passwords, tokens, API keys):${NC}"
 grep -rniE "password|passwd|token|apikey|secret|bearer|authorization|jwt" /var/log /etc /opt /home/*/.bash_history 2>/dev/null | tee -a "$LOG_FILE"
@@ -527,6 +532,8 @@ fi
 [[ -n "$WRITABLE_SSH_DIRS" ]] && log "${GREEN}[+] Writable .ssh Directories Detected${NC}"
 
 [[ -n "$SOCKETS_FOUND" ]] && log "${GREEN}[+] Unix Socket Files Detected — Check for Privileged Daemons or IPC Access${NC}"
+
+[[ -n "$AUTH_KEYS_WRITABLE" ]] && log "${GREEN}[+] Writable authorized_keys Files Found — Possible Backdoor/Persistence Vector${NC}"
 
 
 if find /etc -type f -perm -g=w,o=w 2>/dev/null | grep -q .; then
