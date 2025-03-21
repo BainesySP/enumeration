@@ -45,7 +45,7 @@ curl -s "https://www.exploit-db.com/search?text=$KERNEL_VERSION" | grep -o 'CVE-
 log "${GREEN}\n[+] TIP:${NC} Review the listed CVEs on Exploit-DB or Google them to find PoCs and exploitation guides."
 log "${GREEN}    Use tools like searchsploit or exploitdb.com to see if any are local privilege escalation exploits relevant to your kernel.${NC}"
 
-# ------------------- PRIVILEGE ESCALATION CHECKS -------------------
+# ------------------- SUDO PRIVILEGE ESCALATION CHECKS -------------------
 log "${YELLOW}\n[+] Checking Sudo Capabilities:${NC}"
 SUDO_CMDS=$(sudo -l 2>/dev/null)
 
