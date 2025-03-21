@@ -95,7 +95,6 @@ log "${BLUE}[>] Listening Services (TCP/UDP):${NC}"
 LISTENING=$(ss -tulnp 2>/dev/null | tee -a "$LOG_FILE")
 
 # If ss doesn't work, fallback to netstat
-LISTENING=$(ss -tulnp 2>/dev/null)
 
 if [[ -z "$LISTENING" ]]; then
     LISTENING=$(netstat -tulnp 2>/dev/null)
@@ -110,18 +109,22 @@ log "${BLUE}[>] Established Connections:${NC}"
 echo "$ESTABLISHED" | tee -a "$LOG_FILE"
 
 if echo "$LISTENING" | grep -q ':22'; then
+    NETWORK_SSH=true
     log "${GREEN}[+] TIP:${NC} SSH is running. If weak passwords or key-based auth are used, try bruteforce or key reuse attacks."
 fi
 
 if echo "$LISTENING" | grep -q ':80\|:443'; then
+    NETWORK_WEB=true
     log "${GREEN}[+] TIP:${NC} Web service detected. Check for hidden directories with dirb/ffuf or SSRF, LFI, RCE issues."
 fi
 
 if echo "$LISTENING" | grep -q ':3306'; then
+    NETWORK_DB=true
     log "${GREEN}[+] TIP:${NC} MySQL is running. Look for weak creds or readable config files with saved DB passwords."
 fi
 
 if echo "$LISTENING" | grep -q '0\.0\.0\.0'; then
+    NETWORK_PUBLIC=true
     log "${GREEN}[+] TIP:${NC} Some services are listening on 0.0.0.0 (all interfaces). These may be remotely accessible — check firewall rules or test from another machine if you can.${NC}"
 fi
 
