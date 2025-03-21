@@ -16,6 +16,11 @@ NC='\033[0m' # No Color
 SHADOW_READABLE=""
 PKG_BACKDOORS_FOUND=""
 CLOUD_CREDS_FOUND=""
+NETWORK_SSH=""
+NETWORK_WEB=""
+NETWORK_DB=""
+NETWORK_PUBLIC_LISTEN=""
+
 
 # Central logging function
 log() {
@@ -71,6 +76,67 @@ curl -s "https://www.exploit-db.com/search?text=$KERNEL_VERSION" | grep -o 'CVE-
 
 log "${GREEN}\n[+] TIP:${NC} Review the listed CVEs on Exploit-DB or Google them to find PoCs and exploitation guides."
 log "${GREEN}    Use tools like searchsploit or exploitdb.com to see if any are local privilege escalation exploits relevant to your kernel.${NC}"
+
+# ------------------- NETWORK ENUMERATION -------------------
+log "${YELLOW}\n[+] Enumerating Network Interfaces, Open Ports, and Listening Services:${NC}"
+
+log "${BLUE}[>] Network Interfaces and IP Addresses:${NC}"
+ip a | tee -a "$LOG_FILE"
+
+log "${BLUE}[>] Routing Table:${NC}"
+ip route | tee -a "$LOG_FILE"
+
+log "${BLUE}[>] Listening Services (TCP/UDP):${NC}"
+LISTENING=$(ss -tulnp 2>/dev/null | tee -a "$LOG_FILE")
+
+# If ss doesn't work, fallback to netstat
+if [[ -z "$LISTENING" ]]; then
+    LISTENING=$(netstat -tulnp 2>/dev/null | tee -a "$LOG_FILE")
+fi
+
+if echo "$LISTENING" | grep -q ':22'; then
+    NETWORK_SSH=true
+    log "${GREEN}[+] TIP:${NC} SSH is running. If weak passwords or key-based auth are used, try bruteforce or key reuse attacks."
+fi
+
+if echo "$LISTENING" | grep -q ':80\|:443'; then
+    NETWORK_WEB=true
+    log "${GREEN}[+] TIP:${NC} Web service detected. Check for hidden directories with dirb/ffuf or SSRF, LFI, RCE issues."
+fi
+
+if echo "$LISTENING" | grep -q ':3306'; then
+    NETWORK_DB=true
+    log "${GREEN}[+] TIP:${NC} MySQL is running. Look for weak creds or readable config files with saved DB passwords."
+fi
+
+if echo "$LISTENING" | grep -q '0\.0\.0\.0'; then
+    NETWORK_PUBLIC_LISTEN=true
+    log "${GREEN}[+] TIP:${NC} Services are listening on 0.0.0.0 (all interfaces). These may be remotely accessible — check firewall rules or test from another host.${NC}"
+fi
+
+log "${BLUE}[>] Established Connections:${NC}"
+ss -tunap 2>/dev/null | grep ESTAB | tee -a "$LOG_FILE"
+
+if echo "$LISTENING" | grep -q ':22'; then
+    log "${GREEN}[+] TIP:${NC} SSH is running. If weak passwords or key-based auth are used, try bruteforce or key reuse attacks."
+fi
+
+if echo "$LISTENING" | grep -q ':80\|:443'; then
+    log "${GREEN}[+] TIP:${NC} Web service detected. Check for hidden directories with dirb/ffuf or SSRF, LFI, RCE issues."
+fi
+
+if echo "$LISTENING" | grep -q ':3306'; then
+    log "${GREEN}[+] TIP:${NC} MySQL is running. Look for weak creds or readable config files with saved DB passwords."
+fi
+
+if echo "$LISTENING" | grep -q '0\.0\.0\.0'; then
+    log "${GREEN}[+] TIP:${NC} Some services are listening on 0.0.0.0 (all interfaces). These may be remotely accessible — check firewall rules or test from another machine if you can.${NC}"
+fi
+
+if echo "$LISTENING" | grep -q ':1[0-9][0-9][0-9]'; then
+    log "${GREEN}[+] TIP:${NC} High ports detected — might indicate development services or admin tools (e.g., NodeJS, Rails, custom apps). Try connecting directly or scanning for endpoints.${NC}"
+fi
+
 
 # ------------------- SUDO PRIVILEGE ESCALATION CHECKS -------------------
 log "${YELLOW}\n[+] Checking Sudo Capabilities:${NC}"
