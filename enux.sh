@@ -93,32 +93,19 @@ log "${BLUE}[>] Listening Services (TCP/UDP):${NC}"
 LISTENING=$(ss -tulnp 2>/dev/null | tee -a "$LOG_FILE")
 
 # If ss doesn't work, fallback to netstat
+LISTENING=$(ss -tulnp 2>/dev/null)
+
 if [[ -z "$LISTENING" ]]; then
-    LISTENING=$(netstat -tulnp 2>/dev/null | tee -a "$LOG_FILE")
+    LISTENING=$(netstat -tulnp 2>/dev/null)
+    ESTABLISHED=$(netstat -tunap 2>/dev/null | grep ESTAB)
+else
+    ESTABLISHED=$(ss -tunap 2>/dev/null | grep ESTAB)
 fi
 
-if echo "$LISTENING" | grep -q ':22'; then
-    NETWORK_SSH=true
-    log "${GREEN}[+] TIP:${NC} SSH is running. If weak passwords or key-based auth are used, try bruteforce or key reuse attacks."
-fi
-
-if echo "$LISTENING" | grep -q ':80\|:443'; then
-    NETWORK_WEB=true
-    log "${GREEN}[+] TIP:${NC} Web service detected. Check for hidden directories with dirb/ffuf or SSRF, LFI, RCE issues."
-fi
-
-if echo "$LISTENING" | grep -q ':3306'; then
-    NETWORK_DB=true
-    log "${GREEN}[+] TIP:${NC} MySQL is running. Look for weak creds or readable config files with saved DB passwords."
-fi
-
-if echo "$LISTENING" | grep -q '0\.0\.0\.0'; then
-    NETWORK_PUBLIC_LISTEN=true
-    log "${GREEN}[+] TIP:${NC} Services are listening on 0.0.0.0 (all interfaces). These may be remotely accessible — check firewall rules or test from another host.${NC}"
-fi
+echo "$LISTENING" | tee -a "$LOG_FILE"
 
 log "${BLUE}[>] Established Connections:${NC}"
-ss -tunap 2>/dev/null | grep ESTAB | tee -a "$LOG_FILE"
+echo "$ESTABLISHED" | tee -a "$LOG_FILE"
 
 if echo "$LISTENING" | grep -q ':22'; then
     log "${GREEN}[+] TIP:${NC} SSH is running. If weak passwords or key-based auth are used, try bruteforce or key reuse attacks."
@@ -343,14 +330,16 @@ fi
 
 
 # ------------------- CREDENTIAL DISCOVERY -------------------
-log "${YELLOW}\n[+] Checking logs for sensitive information (passwords, tokens, API keys):${NC}"
-grep -rniE "password|passwd|token|apikey|secret|bearer|authorization|jwt" /var/log /etc /opt /home/*/.bash_history 2>/dev/null | tee -a "$LOG_FILE"
-
 log "${YELLOW}\n[+] Looking for high-entropy strings (potential secrets):${NC}"
-find /var/log /etc /opt /home -type f -exec grep -Eo '[A-Za-z0-9+/]{30,}' {} \; 2>/dev/null | sort -u | tee -a "$LOG_FILE"
 
-if find /var/log /etc /opt /home -type f -exec grep -Eo '[A-Za-z0-9+/]{30,}' {} \; 2>/dev/null | grep -q .; then
+HIGH_ENTROPY_STRINGS=$(find /var/log /etc /opt /home -type f -exec grep -Eo '[A-Za-z0-9+/]{30,}' {} \; 2>/dev/null | sort -u)
+
+echo "$HIGH_ENTROPY_STRINGS" | tee -a "$LOG_FILE"
+
+if [[ -n "$HIGH_ENTROPY_STRINGS" ]]; then
     HIGH_ENTROPY_FOUND=true
+    log "${GREEN}[+] TIP:${NC} High-entropy strings found! These may be API keys, tokens, JWTs, or secrets in plaintext."
+    log "${GREEN}    Review them for anything base64-like, hardcoded keys, or tokens in logs or configs.${NC}"
 fi
 
 if grep -rniE "password|passwd|token|apikey|secret|bearer|authorization|jwt" /var/log /etc /opt /home/*/.bash_history 2>/dev/null | grep -q .; then
@@ -486,8 +475,6 @@ fi
 if [[ -n "$SOCKET_FILES" ]]; then
     SOCKETS_FOUND=true
 fi
-
-
 
 # ------------------- BINARY CAPABILITY CHECK -------------------
 log "${YELLOW}\n[+] Checking for unusual binary capabilities (via getcap):${NC}"
