@@ -145,18 +145,32 @@ fi
 
 # ------------------- LATERAL MOVEMENT CHECKS -------------------
 log "${YELLOW}\n[+] Checking for Readable Home Directories:${NC}"
-find /home -maxdepth 1 -type d -perm -o+r 2>/dev/null | tee -a "$LOG_FILE"
+READABLE_HOMES=$(find /home -maxdepth 1 -type d -perm -o+r 2>/dev/null)
+echo "$READABLE_HOMES" | tee -a "$LOG_FILE"
 
 log "${YELLOW}\n[+] Searching for Other Users' SSH Private Keys:${NC}"
-find /home -type f -name "id_rsa" -o -name "*.pem" 2>/dev/null | tee -a "$LOG_FILE"
+SSH_KEYS=$(find /home -type f -name "id_rsa" -o -name "*.pem" 2>/dev/null)
+echo "$SSH_KEYS" | tee -a "$LOG_FILE"
 
-if find /home -maxdepth 1 -type d -perm -o+r 2>/dev/null | grep -q .; then
-    log "${GREEN}\n[+] TIP:${NC} Some home directories are world-readable. Check for bash histories, SSH configs, or plaintext creds you can access."
+if [[ -n "$READABLE_HOMES" ]]; then
+    log "${GREEN}\n[+] TIP:${NC} Some home directories are world-readable. Look for files like .bash_history, .ssh/config, .git-credentials, or saved scripts."
+    for USERDIR in $READABLE_HOMES; do
+        log "${BLUE}    [>] Scanning $USERDIR for common artifacts...${NC}"
+        find "$USERDIR" -maxdepth 2 -type f \( -name \"*.sh\" -o -name \".bash_history\" -o -name \"authorized_keys\" -o -name \".git-credentials\" \) 2>/dev/null | tee -a \"$LOG_FILE\"
+    done
 fi
 
-if find /home -type f -name \"id_rsa\" -o -name \"*.pem\" 2>/dev/null | grep -q .; then
+if [[ -n "$SSH_KEYS" ]]; then
     log "${GREEN}[+] TIP:${NC} SSH private keys found! Try using them to pivot into user accounts or onto other systems (check for reused keys)."
 fi
+
+log "${YELLOW}\n[+] Checking for Writable .ssh Directories (Potential for Key Implanting):${NC}"
+WRITABLE_SSH_DIRS=$(find /home -type d -name \".ssh\" -perm -o+w 2>/dev/null)
+echo \"$WRITABLE_SSH_DIRS\" | tee -a \"$LOG_FILE\"
+
+if [[ -n \"$WRITABLE_SSH_DIRS\" ]]; then
+    log \"${GREEN}[+] TIP:${NC} Writable .ssh directories found. You may be able to implant your own public key and access the account without password!\"\nfi
+
 
 # ------------------- CREDENTIAL DISCOVERY -------------------
 log "${YELLOW}\n[+] Checking logs for sensitive information (passwords, tokens, API keys):${NC}"
