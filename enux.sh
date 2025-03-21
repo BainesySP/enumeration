@@ -478,6 +478,10 @@ log "${BLUE}\n[*] High-Level Summary of Key Findings:${NC}"
 
 [[ -n "$SUDO_CMDS" ]] && log "${GREEN}[+] Sudo Access Detected${NC}"
 
+if [[ "$NETWORK_SSH" || "$NETWORK_WEB" || "$NETWORK_DB" || "$NETWORK_PUBLIC_LISTEN" ]]; then
+    log "${GREEN}[+] Network Services Detected — Open Ports or Listening Daemons (e.g., SSH/Web/DB/Public)${NC}"
+fi
+
 [[ -n "$SUID_RESULTS" ]] && log "${GREEN}[+] SUID Binaries Present${NC}"
 
 [[ -n "$CMD_HISTORY" ]] && log "${GREEN}[+] Sensitive Commands in Shell History${NC}"
