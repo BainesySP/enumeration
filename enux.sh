@@ -13,9 +13,9 @@ YELLOW='\033[0;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-SHADOW_READABLE=true
-PKG_BACKDOORS_FOUND=true
-CLOUD_CREDS_FOUND=true
+SHADOW_READABLE=""
+PKG_BACKDOORS_FOUND=""
+CLOUD_CREDS_FOUND=""
 
 # Central logging function
 log() {
