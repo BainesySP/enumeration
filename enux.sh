@@ -34,7 +34,6 @@ VIRT_ENV=""
 if grep -qE 'docker|lxc' /proc/1/cgroup 2>/dev/null; then
     VIRT_ENV="Container (Docker/LXC)"
     log "${GREEN}[+] Detected: $VIRT_ENV${NC}"
-# Check for systemd-detect-virt
 elif command -v systemd-detect-virt &>/dev/null && systemd-detect-virt -q; then
     VIRT_ENV=$(systemd-detect-virt)
     log "${GREEN}[+] Detected Virtual Environment: $VIRT_ENV${NC}"
@@ -142,6 +141,7 @@ log "${GREEN}    These accounts might be service users, misconfigured, or potent
 log "${YELLOW}\n[+] Checking for readable /etc/shadow file:${NC}"
 
 if [[ -r /etc/shadow ]]; then
+    SHADOW_READABLE=true
     log "${GREEN}[!] /etc/shadow is readable! This file stores password hashes for all users.${NC}"
     grep -vE '^#' /etc/shadow | tee -a "$LOG_FILE"
 
@@ -155,33 +155,37 @@ fi
 # ------------------- PACKAGE-BASED BACKDOOR / SHELL DETECTION -------------------
 log "${YELLOW}\n[+] Scanning for suspicious packages or backdoor implants:${NC}"
 
-# APT-based (Debian/Ubuntu)
 if command -v dpkg &>/dev/null; then
     log "${BLUE}[>] Checking dpkg for known backdoors/shells:${NC}"
+    if dpkg -l | grep -Eiq 'shell|backdoor|reverse|exploit|hack|meterpreter'; then
+        PKG_BACKDOORS_FOUND=true
+    fi
     dpkg -l | grep -Ei 'shell|backdoor|reverse|exploit|hack|meterpreter' | tee -a "$LOG_FILE"
 fi
 
-# RPM-based (RHEL/CentOS/Fedora)
 if command -v rpm &>/dev/null; then
     log "${BLUE}[>] Checking rpm for suspicious packages:${NC}"
+    if rpm -qa | grep -Eiq 'shell|backdoor|reverse|exploit|hack|meterpreter'; then
+        PKG_BACKDOORS_FOUND=true
+    fi
     rpm -qa | grep -Ei 'shell|backdoor|reverse|exploit|hack|meterpreter' | tee -a "$LOG_FILE"
 fi
 
-# PIP (Python)
 if command -v pip &>/dev/null; then
     log "${BLUE}[>] Checking pip packages for sketchy modules:${NC}"
+    if pip list | grep -Eiq 'pty|shell|pwntools|backdoor|revshell|rce|payload'; then
+        PKG_BACKDOORS_FOUND=true
+    fi
     pip list | grep -Ei 'pty|shell|pwntools|backdoor|revshell|rce|payload' | tee -a "$LOG_FILE"
 fi
 
-# NPM (NodeJS)
 if command -v npm &>/dev/null; then
     log "${BLUE}[>] Checking npm modules for suspicious packages:${NC}"
+    if npm list -g --depth=0 2>/dev/null | grep -Eiq 'shell|reverse|payload|rce|backdoor'; then
+        PKG_BACKDOORS_FOUND=true
+    fi
     npm list -g --depth=0 2>/dev/null | grep -Ei 'shell|reverse|payload|rce|backdoor' | tee -a "$LOG_FILE"
 fi
-
-log "${GREEN}\n[+] TIP:${NC} Suspicious dev packages or implants may indicate persistence, testing tools, or compromise."
-log "${GREEN}    Look for shell wrappers, post-install scripts, or backdoor access utilities — especially in pip/npm if devs worked on the box.${NC}"
-
 
 # ------------------- CRON JOB EXPLOIT CHECK -------------------
 log "${YELLOW}\n[+] Checking for Scheduled Cron Jobs:${NC}"
@@ -263,47 +267,14 @@ fi
 # ------------------- CLOUD CREDENTIAL DISCOVERY -------------------
 log "${YELLOW}\n[+] Checking for cloud provider credentials:${NC}"
 
-# AWS
-log "${BLUE}[>] Searching for AWS credentials:${NC}"
 AWS_CREDS=$(find /home /root -type f \( -name "credentials" -o -name "config" \) -path "*/.aws/*" 2>/dev/null)
-if [[ -n "$AWS_CREDS" ]]; then
-    echo "$AWS_CREDS" | tee -a "$LOG_FILE"
-    grep -Ei "aws_access_key_id|aws_secret_access_key" $AWS_CREDS 2>/dev/null | tee -a "$LOG_FILE"
-    log "${GREEN}[+] TIP:${NC} Found AWS credential files. Test them with AWS CLI or pacu for privilege escalation or data access."
-else
-    log "${YELLOW}[-] No AWS credentials found.${NC}"
-fi
-
-# GCP
-log "${BLUE}[>] Searching for GCP service account keys:${NC}"
 GCP_CREDS=$(find /home /root -type f -name "*.json" -path "*/.config/gcloud/*" 2>/dev/null)
-if [[ -n "$GCP_CREDS" ]]; then
-    echo "$GCP_CREDS" | tee -a "$LOG_FILE"
-    log "${GREEN}[+] TIP:${NC} GCP service account keys found. Use gcloud or GCP exploitation tools to test access and privilege.${NC}"
-else
-    log "${YELLOW}[-] No GCP credentials found.${NC}"
-fi
-
-# Azure
-log "${BLUE}[>] Searching for Azure credentials:${NC}"
 AZURE_CREDS=$(find /home /root -type f -name "*.json" -path "*/.azure/*" 2>/dev/null)
-if [[ -n "$AZURE_CREDS" ]]; then
-    echo "$AZURE_CREDS" | tee -a "$LOG_FILE"
-    log "${GREEN}[+] TIP:${NC} Azure credentials found — check for tokens, client secrets, and CLI auth caches.${NC}"
-else
-    log "${YELLOW}[-] No Azure credentials found.${NC}"
-fi
-
-# DigitalOcean
-log "${BLUE}[>] Searching for DigitalOcean config/API files:${NC}"
 DO_CREDS=$(find /home /root -type f -path "*/.config/doctl/*" 2>/dev/null)
-if [[ -n "$DO_CREDS" ]]; then
-    echo "$DO_CREDS" | tee -a "$LOG_FILE"
-    log "${GREEN}[+] TIP:${NC} DigitalOcean CLI config found — inspect for access tokens and reuse opportunities.${NC}"
-else
-    log "${YELLOW}[-] No DigitalOcean credentials found.${NC}"
-fi
 
+if [[ -n "$AWS_CREDS" || -n "$GCP_CREDS" || -n "$AZURE_CREDS" || -n "$DO_CREDS" ]]; then
+    CLOUD_CREDS_FOUND=true
+fi
 # ------------------- FILE PERMISSION EXPLOITATION -------------------
 log "${YELLOW}\n[+] Checking for Writable Security Files:${NC}"
 find /etc -type f -perm -g=w,o=w 2>/dev/null | tee -a "$LOG_FILE"
