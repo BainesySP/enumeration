@@ -20,6 +20,8 @@ NETWORK_SSH=""
 NETWORK_WEB=""
 NETWORK_DB=""
 NETWORK_PUBLIC_LISTEN=""
+SOCKETS_FOUND=""
+
 
 
 # Central logging function
@@ -431,6 +433,32 @@ else
     log \"${YELLOW}\\n[+] TIP:${NC} No scripts found in common temp directories. Still worth checking if scripts are being created dynamically or cleaned quickly.${NC}\"
 fi
 
+# ------------------- SOCKET FILE & DAEMON EXPOSURE CHECK -------------------
+log "${YELLOW}\n[+] Checking for Unix domain sockets (.sock files) and potentially exposed daemons:${NC}"
+
+SOCKET_FILES=$(find /var/run /tmp /dev/shm /run /home -type s 2>/dev/null)
+echo "$SOCKET_FILES" | tee -a "$LOG_FILE"
+
+if [[ -n "$SOCKET_FILES" ]]; then
+    log "${GREEN}[+] TIP:${NC} Unix socket files found. These are used by local services for inter-process communication."
+    log "${GREEN}    Check for world-writable or accessible ones — you may be able to interact with privileged daemons or sniff traffic.${NC}"
+
+    # Highlight interesting or writable ones
+    WRITABLE_SOCKS=$(find /var/run /tmp /dev/shm /run /home -type s -perm -o+w 2>/dev/null)
+    if [[ -n "$WRITABLE_SOCKS" ]]; then
+        echo "$WRITABLE_SOCKS" | tee -a "$LOG_FILE"
+        log "${GREEN}[!] Writable socket(s) found — you might interact with higher-privileged services if no auth is enforced.${NC}"
+    fi
+else
+    log "${YELLOW}[-] No socket files found in common IPC directories.${NC}"
+fi
+
+if [[ -n "$SOCKET_FILES" ]]; then
+    SOCKETS_FOUND=true
+fi
+
+
+
 # ------------------- BINARY CAPABILITY CHECK -------------------
 log "${YELLOW}\n[+] Checking for unusual binary capabilities (via getcap):${NC}"
 BIN_CAPS=$(getcap -r / 2>/dev/null | grep -v '^$')
@@ -475,6 +503,9 @@ log "${BLUE}\n[*] High-Level Summary of Key Findings:${NC}"
 [[ -n "$SSH_KEYS" ]] && log "${GREEN}[+] SSH Private Keys Discovered${NC}"
 
 [[ -n "$WRITABLE_SSH_DIRS" ]] && log "${GREEN}[+] Writable .ssh Directories Detected${NC}"
+
+[[ -n "$SOCKETS_FOUND" ]] && log "${GREEN}[+] Unix Socket Files Detected — Check for Privileged Daemons or IPC Access${NC}"
+
 
 if find /etc -type f -perm -g=w,o=w 2>/dev/null | grep -q .; then
     log "${GREEN}[+] Writable Files in /etc${NC}"
