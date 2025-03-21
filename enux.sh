@@ -205,5 +205,90 @@ else
     log "${YELLOW}    You might still find privilege escalation paths through race conditions or poorly isolated services.${NC}"
 fi
 
+# ------------------- ENVIRONMENT VARIABLE SECRETS CHECK -------------------
+log "${YELLOW}\n[+] Checking environment variables for credentials/secrets:${NC}"
+ENV_SECRETS=$(env | grep -iE 'pass|secret|key|token|auth')
+
+if [[ -n "$ENV_SECRETS" ]]; then
+    echo "$ENV_SECRETS" | tee -a "$LOG_FILE"
+    log "${GREEN}\n[+] TIP:${NC} Potential secrets found in environment variables. Try using these for authentication, API access, or service escalation."
+    log "${GREEN}    Be cautious: these could provide tokens, database passwords, or cloud credentials (e.g., AWS, GCP).${NC}"
+else
+    log "${YELLOW}\n[+] TIP:${NC} No obvious secrets found in environment variables, but review them manually for base64 or encoded tokens not caught by regex."
+    log "${YELLOW}    Environment-based credentials are often used in Docker, cloud, and CI/CD environments.${NC}"
+fi
+
+# ------------------- WRITABLE INIT/SYSTEMD SCRIPTS CHECK -------------------
+log "${YELLOW}\n[+] Checking for writable startup/init scripts (systemd, init.d):${NC}"
+WRITABLE_STARTUP=$(find /etc/init.d /etc/systemd/system -type f -writable 2>/dev/null)
+
+if [[ -n "$WRITABLE_STARTUP" ]]; then
+    echo "$WRITABLE_STARTUP" | tee -a "$LOG_FILE"
+    log "${GREEN}\n[+] TIP:${NC} Writable startup scripts found! These can be modified to execute arbitrary code as root at boot or service restart."
+    log "${GREEN}    Consider injecting reverse shells or privilege escalation payloads. Use with caution if persistence is not your goal.${NC}"
+else
+    log "${YELLOW}\n[+] TIP:${NC} No writable init/systemd scripts found. But you can still look for custom services or misconfigured units in /etc/systemd/system/.${NC}"
+fi
+
+# ------------------- COMMON MISCONFIGURATIONS CHECK -------------------
+log "${YELLOW}\n[+] Checking for world-writable directories in \$PATH:${NC}"
+WRITABLE_PATH_DIRS=$(echo "$PATH" | tr ':' '\n' | xargs -I{} find {} -type d -perm -0002 2>/dev/null)
+
+if [[ -n "$WRITABLE_PATH_DIRS" ]]; then
+    echo "$WRITABLE_PATH_DIRS" | tee -a "$LOG_FILE"
+    log "${GREEN}\n[+] TIP:${NC} Writable directories found in \$PATH. You could hijack binaries or inject malicious scripts to escalate privileges."
+    log "${GREEN}    Consider placing a trojan binary in one of these paths if a privileged user executes commands from it.${NC}"
+else
+    log "${YELLOW}\n[+] TIP:${NC} No writable directories in \$PATH. But always double-check for user-specific PATH overrides in ~/.bashrc or ~/.profile.${NC}"
+fi
+
+log "${YELLOW}\n[+] Checking for LD_PRELOAD or LD_LIBRARY_PATH variables (possible hijack vectors):${NC}"
+LD_ENV=$(env | grep -E 'LD_PRELOAD|LD_LIBRARY_PATH')
+
+if [[ -n "$LD_ENV" ]]; then
+    echo "$LD_ENV" | tee -a "$LOG_FILE"
+    log "${GREEN}\n[+] TIP:${NC} These environment variables can be hijacked if used by vulnerable binaries or scripts."
+    log "${GREEN}    Try placing a malicious shared object (.so) file and setting LD_PRELOAD or LD_LIBRARY_PATH to execute it.${NC}"
+else
+    log "${YELLOW}\n[+] TIP:${NC} No LD_PRELOAD or LD_LIBRARY_PATH set in current session, but check for usage in startup scripts or service units.${NC}"
+fi
+
+# ------------------- BACKGROUND PROCESS / SERVICE OWNERSHIP CHECK -------------------
+log "${YELLOW}\n[+] Checking for suspicious root-owned background processes:${NC}"
+ROOT_PROCS=$(ps -U root -u root u | grep -vE '(^root.*(sshd|bash|systemd|init|kthreadd|ps|grep))')
+
+if [[ -n "$ROOT_PROCS" ]]; then
+    echo "$ROOT_PROCS" | tee -a "$LOG_FILE"
+    log "${GREEN}\n[+] TIP:${NC} Found root processes using possibly non-standard binaries. These could be misconfigured services or exploitable scripts."
+    log "${GREEN}    Trace the binary path and check for writable files, custom scripts, or unexpected behavior (e.g., home-grown daemons).${NC}"
+else
+    log "${YELLOW}\n[+] TIP:${NC} No suspicious root processes found. Consider re-checking inside containers or with full ps aux visibility if access is limited.${NC}"
+fi
+
+# ------------------- TEMP FOLDER SCRIPT DISCOVERY -------------------
+log "${YELLOW}\n[+] Searching /tmp, /dev/shm, and /var/tmp for scripts or tools:${NC}"
+TMP_SCRIPTS=$(find /tmp /dev/shm /var/tmp -type f \\( -iname \"*.sh\" -o -iname \"*.py\" -o -iname \"*.pl\" -o -iname \"*.php\" -o -iname \"*.out\" -o -iname \"*reverse*\" \\) 2>/dev/null)
+
+if [[ -n \"$TMP_SCRIPTS\" ]]; then
+    echo \"$TMP_SCRIPTS\" | tee -a \"$LOG_FILE\"
+    log \"${GREEN}\\n[+] TIP:${NC} Suspicious scripts or payloads found in temporary directories. These may be remnants from an attacker, dev testing, or scheduled jobs.\"
+    log \"${GREEN}    Review them for hardcoded credentials, backdoor code, or signs of lateral movement and escalation tools.${NC}\"
+else
+    log \"${YELLOW}\\n[+] TIP:${NC} No scripts found in common temp directories. Still worth checking if scripts are being created dynamically or cleaned quickly.${NC}\"
+fi
+
+# ------------------- BINARY CAPABILITY CHECK -------------------
+log "${YELLOW}\n[+] Checking for unusual binary capabilities (via getcap):${NC}"
+BIN_CAPS=$(getcap -r / 2>/dev/null | grep -v '^$')
+
+if [[ -n "$BIN_CAPS" ]]; then
+    echo "$BIN_CAPS" | tee -a "$LOG_FILE"
+    log "${GREEN}\n[+] TIP:${NC} Some binaries have extended capabilities set — these may allow privilege escalation without SUID."
+    log "${GREEN}    Look for caps like cap_setuid, cap_sys_admin, cap_dac_override — especially on interpreters like python or node.${NC}"
+else
+    log "${YELLOW}\n[+] TIP:${NC} No binaries with special capabilities found. Still, review newly installed tools or custom paths just in case.${NC}"
+fi
+
+
 # ------------------- ENUMERATION COMPLETED -------------------
 log "${GREEN}\n[+] Enumeration completed. Check results in: $LOG_FILE${NC}"
