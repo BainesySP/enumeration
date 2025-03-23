@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Define log file
-LOG_FILE="ultimate_enum.log"
+LOG_FILE="enux.log"
 
 # Clear previous log
 > "$LOG_FILE"
@@ -308,7 +308,8 @@ WRITABLE_SSH_DIRS=$(find /home -type d -name \".ssh\" -perm -o+w 2>/dev/null)
 echo \"$WRITABLE_SSH_DIRS\" | tee -a \"$LOG_FILE\"
 
 if [[ -n \"$WRITABLE_SSH_DIRS\" ]]; then
-    log \"${GREEN}[+] TIP:${NC} Writable .ssh directories found. You may be able to implant your own public key and access the account without password!\"\nfi
+    log \"${GREEN}[+] TIP:${NC} Writable .ssh directories found. You may be able to implant your own public key and access the account without password!\"\n
+fi
 
 log "${YELLOW}\n[+] Checking for Writable authorized_keys Files (Persistence Vectors):${NC}"
 WRITABLE_AUTH_KEYS=$(find /home -type f -name "authorized_keys" -perm -o+w 2>/dev/null)
@@ -335,19 +336,11 @@ fi
 
 
 # ------------------- CREDENTIAL DISCOVERY -------------------
-log "${YELLOW}\n[+] Looking for high-entropy strings (potential secrets):${NC}"
 
-HIGH_ENTROPY_STRINGS=$(find /var/log /etc /opt /home -type f -exec grep -Eo '[A-Za-z0-9+/]{30,}' {} \; 2>/dev/null | sort -u)
+SENSITIVE_FILES=$(grep -rniE "password|passwd|token|apikey|secret|bearer|authorization|jwt" /var/log /etc /opt /home 2>/dev/null)
 
-echo "$HIGH_ENTROPY_STRINGS" | tee -a "$LOG_FILE"
-
-if [[ -n "$HIGH_ENTROPY_STRINGS" ]]; then
-    HIGH_ENTROPY_FOUND=true
-    log "${GREEN}[+] TIP:${NC} High-entropy strings found! These may be API keys, tokens, JWTs, or secrets in plaintext."
-    log "${GREEN}    Review them for anything base64-like, hardcoded keys, or tokens in logs or configs.${NC}"
-fi
-
-if grep -rniE "password|passwd|token|apikey|secret|bearer|authorization|jwt" /var/log /etc /opt /home/*/.bash_history 2>/dev/null | grep -q .; then
+if [[ -n "$SENSITIVE_FILES" ]]; then
+    echo "$SENSITIVE_FILES" | tee -a "$LOG_FILE"
     log "${GREEN}\n[+] TIP:${NC} Sensitive credentials or tokens were found in readable files or logs."
     log "${GREEN}    Try using these values in authentication attempts, API requests, or service logins. Be sure to check if they're still valid.${NC}"
 else
@@ -366,6 +359,7 @@ DO_CREDS=$(find /home /root -type f -path "*/.config/doctl/*" 2>/dev/null)
 if [[ -n "$AWS_CREDS" || -n "$GCP_CREDS" || -n "$AZURE_CREDS" || -n "$DO_CREDS" ]]; then
     CLOUD_CREDS_FOUND=true
 fi
+
 # ------------------- FILE PERMISSION EXPLOITATION -------------------
 log "${YELLOW}\n[+] Checking for Writable Security Files:${NC}"
 find /etc -type f -perm -g=w,o=w 2>/dev/null | tee -a "$LOG_FILE"
@@ -447,7 +441,8 @@ fi
 
 # ------------------- TEMP FOLDER SCRIPT DISCOVERY -------------------
 log "${YELLOW}\n[+] Searching /tmp, /dev/shm, and /var/tmp for scripts or tools:${NC}"
-TMP_SCRIPTS=$(find /tmp /dev/shm /var/tmp -type f \\( -iname \"*.sh\" -o -iname \"*.py\" -o -iname \"*.pl\" -o -iname \"*.php\" -o -iname \"*.out\" -o -iname \"*reverse*\" \\) 2>/dev/null)
+TMP_SCRIPTS=$(find /tmp /dev/shm /var/tmp -type f \( -iname "*.sh" -o -iname "*.py" -o -iname "*.pl" -o -iname "*.php" -o -iname "*.out" -o -iname "*reverse*" \) 2>/dev/null)
+
 
 if [[ -n \"$TMP_SCRIPTS\" ]]; then
     echo \"$TMP_SCRIPTS\" | tee -a \"$LOG_FILE\"
