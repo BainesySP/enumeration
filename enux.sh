@@ -258,14 +258,22 @@ if [[ -n "$CRON_JOBS" ]]; then
     WRITABLE_CRON_SCRIPTS=$(find /etc/cron* -type f -writable 2>/dev/null)
     
     if [[ -n "$WRITABLE_CRON_SCRIPTS" ]]; then
-        log "$WRITABLE_CRON_SCRIPTS"
+        echo "$WRITABLE_CRON_SCRIPTS" | tee -a "$LOG_FILE"
+        WRITABLE_CRONS_FOUND=true
+    fi
+
+    log "${GREEN}[+] Checking for Writable Cron Directories:${NC}"
+    WRITABLE_CRON_DIRS=$(find /etc/cron* -type d -perm -002 2>/dev/null)
+    
+    if [[ -n "$WRITABLE_CRON_DIRS" ]]; then
+        echo "$WRITABLE_CRON_DIRS" | tee -a "$LOG_FILE"
         WRITABLE_CRONS_FOUND=true
     fi
 else
     log "${RED}[-] No cron jobs found.${NC}"
 fi
 
-log "${GREEN}\n[+] TIP:${NC} Writable cron jobs or scripts can be hijacked to execute arbitrary code as root or another user."
+log "${GREEN}\n[+] TIP:${NC} Writable cron jobs or directories can be hijacked to execute arbitrary code as root or another user."
 log "${GREEN}    Look for scripts owned by root or run by privileged accounts — especially if you can modify them or their path dependencies.${NC}"
 
 # ------------------- SUID & SGID BINARY CHECK -------------------
@@ -282,6 +290,23 @@ else
     log "${YELLOW}    Consider checking inside mounted filesystems, containers, or backups if accessible.${NC}"
 fi
 
+log "${GREEN}\n[+] Cross-referencing SUID binaries with GTFOBins:${NC}"
+
+# List of common SUID-exploitable binaries from GTFOBins
+declare -a GTFO_SUID=(
+    "bash" "find" "vim" "nmap" "less" "more" "nano" "cp" "mv"
+    "python" "python3" "perl" "ruby" "awk" "tar" "env" "tee"
+    "openssl" "rsync" "mount" "umount" "systemctl" "tcpdump"
+)
+
+for BIN in "${GTFO_SUID[@]}"; do
+    FOUND=$(echo "$SUID_RESULTS" | grep -E "/$BIN$" 2>/dev/null)
+    if [[ -n "$FOUND" ]]; then
+        log "${GREEN}[!] GTFOBin Found: $FOUND${NC}"
+        log "${GREEN}    → Search: https://gtfobins.github.io/gtfobins/$BIN/${NC}"
+    fi
+done
+
 # ------------------- LATERAL MOVEMENT CHECKS -------------------
 log "${YELLOW}\n[+] Checking for Readable Home Directories:${NC}"
 READABLE_HOMES=$(find /home -maxdepth 1 -type d -perm -o+r 2>/dev/null)
@@ -295,7 +320,7 @@ if [[ -n "$READABLE_HOMES" ]]; then
     log "${GREEN}\n[+] TIP:${NC} Some home directories are world-readable. Look for files like .bash_history, .ssh/config, .git-credentials, or saved scripts."
     for USERDIR in $READABLE_HOMES; do
         log "${BLUE}    [>] Scanning $USERDIR for common artifacts...${NC}"
-        find "$USERDIR" -maxdepth 2 -type f \( -name \"*.sh\" -o -name \".bash_history\" -o -name \"authorized_keys\" -o -name \".git-credentials\" \) 2>/dev/null | tee -a \"$LOG_FILE\"
+        find "$USERDIR" -maxdepth 2 -type f \( -name \"*.sh\" -o -name \".bash_history\" -o -name \"authorized_keys\" -o -name \".git-credentials\" \) 2>/dev/null | tee -a "$LOG_FILE"
     done
 fi
 
@@ -305,10 +330,10 @@ fi
 
 log "${YELLOW}\n[+] Checking for Writable .ssh Directories (Potential for Key Implanting):${NC}"
 WRITABLE_SSH_DIRS=$(find /home -type d -name \".ssh\" -perm -o+w 2>/dev/null)
-echo \"$WRITABLE_SSH_DIRS\" | tee -a \"$LOG_FILE\"
+echo "$WRITABLE_SSH_DIRS" | tee -a "$LOG_FILE"
 
-if [[ -n \"$WRITABLE_SSH_DIRS\" ]]; then
-    log \"${GREEN}[+] TIP:${NC} Writable .ssh directories found. You may be able to implant your own public key and access the account without password!\"\n
+if [[ -n "$WRITABLE_SSH_DIRS" ]]; then
+    log "${GREEN}[+] TIP:${NC} Writable .ssh directories found. You may be able to implant your own public key and access the account without password!"\n
 fi
 
 log "${YELLOW}\n[+] Checking for Writable authorized_keys Files (Persistence Vectors):${NC}"
@@ -445,8 +470,8 @@ TMP_SCRIPTS=$(find /tmp /dev/shm /var/tmp -type f \( -iname "*.sh" -o -iname "*.
 
 
 if [[ -n \"$TMP_SCRIPTS\" ]]; then
-    echo \"$TMP_SCRIPTS\" | tee -a \"$LOG_FILE\"
-    log \"${GREEN}\\n[+] TIP:${NC} Suspicious scripts or payloads found in temporary directories. These may be remnants from an attacker, dev testing, or scheduled jobs.\"
+    echo "$TMP_SCRIPTS" | tee -a "$LOG_FILE"
+    log "${GREEN}\n[+] TIP:${NC} Suspicious scripts or payloads found..."
     log \"${GREEN}    Review them for hardcoded credentials, backdoor code, or signs of lateral movement and escalation tools.${NC}\"
 else
     log \"${YELLOW}\\n[+] TIP:${NC} No scripts found in common temp directories. Still worth checking if scripts are being created dynamically or cleaned quickly.${NC}\"
