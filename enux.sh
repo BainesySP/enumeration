@@ -14,18 +14,16 @@ log "     Author: 3ctr1x"
 log " ----------------------------------------------------------------------------"
 log" "
 
-# Define log file
-LOG_FILE="enux.log"
 
-# Clear previous log
-> "$LOG_FILE"
+LOG_FILE="enux.log"    # Define log file
+> "$LOG_FILE"          # Clear previous log 
 
-# Color Definitions
+# Colours
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[0;33m'
 BLUE='\033[0;34m'
-NC='\033[0m' # No Color
+NC='\033[0m'
 
 SHADOW_READABLE=""
 PKG_BACKDOORS_FOUND=""
