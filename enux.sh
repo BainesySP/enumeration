@@ -1,5 +1,18 @@
 #!/bin/bash
 
+log " "
+log "  ███████╗███╗   ██╗██╗   ██╗██╗  ██╗"
+log "  ██╔════╝████╗  ██║██║   ██║╚██╗██╔╝"
+log "  █████╗  ██╔██╗ ██║██║   ██║ ╚███╔╝ "
+log "  ██╔══╝  ██║╚██╗██║██║   ██║ ██╔██╗ "
+log "  ███████╗██║ ╚████║╚██████╔╝██╔╝ ██╗"
+log "  ╚══════╝╚═╝  ╚═══╝ ╚═════╝ ╚═╝  ╚═╝"
+log " "
+log "     enux.sh — Enhanced Unix Privilege Escalation Enumeration Script"
+log "     Version: 1.0"
+log "     Author: 3ctr1x"
+log " ----------------------------------------------------------------------------"
+
 # Define log file
 LOG_FILE="enux.log"
 
@@ -34,6 +47,8 @@ log() {
 
 log "${BLUE}[*] Running enhanced low-privilege enumeration script...${NC}"
 log "${BLUE}[*] Results will be saved in $LOG_FILE${NC}"
+
+
 
 # ------------------- CONTAINER / VIRTUALIZATION DETECTION -------------------
 log "${YELLOW}\n[+] Checking for container or virtualization environment:${NC}"
