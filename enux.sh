@@ -12,6 +12,7 @@ log "     enux.sh — Enhanced Unix Privilege Escalation Enumeration Script"
 log "     Version: 1.0"
 log "     Author: 3ctr1x"
 log " ----------------------------------------------------------------------------"
+log" "
 
 # Define log file
 LOG_FILE="enux.log"
@@ -49,7 +50,7 @@ log "${BLUE}[*] Running enhanced low-privilege enumeration script...${NC}"
 log "${BLUE}[*] Results will be saved in $LOG_FILE${NC}"
 
 
-
+log " "
 # ------------------- CONTAINER / VIRTUALIZATION DETECTION -------------------
 log "${YELLOW}\n[+] Checking for container or virtualization environment:${NC}"
 
@@ -72,6 +73,8 @@ if [[ -n "$VIRT_ENV" ]]; then
 else
     log "${YELLOW}[+] TIP:${NC} No virtualization detected — you may be on bare metal or a hardened guest system. Escalation may be more straightforward.${NC}"
 fi
+
+log " "
 
 # ------------------- SYSTEM ENUMERATION -------------------
 log "${YELLOW}\n[+] Host Information:${NC}"
