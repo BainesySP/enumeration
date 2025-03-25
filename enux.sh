@@ -51,6 +51,7 @@ log "${BLUE}[*] Results will be saved in $LOG_FILE${NC}"
 
 
 log " "
+
 # ------------------- CONTAINER / VIRTUALIZATION DETECTION -------------------
 log "${YELLOW}\n[+] Checking for container or virtualization environment:${NC}"
 
@@ -93,12 +94,16 @@ log "Total Threads: $(($(nproc)))"
 log "${GREEN}\n[+] TIP:${NC} Based on the system info, look for kernel-specific exploits that match version $KERNEL_VERSION."
 log "${GREEN}    You can also assess performance-heavy exploits since the system has $(nproc) threads available.${NC}"
 
+log" "
+
 # ------------------- KERNEL EXPLOIT SUGGESTIONS -------------------
 log "${YELLOW}\n[+] Searching for Known Kernel Exploits:${NC}"
 curl -s "https://www.exploit-db.com/search?text=$KERNEL_VERSION" | grep -o 'CVE-[0-9]\{4\}-[0-9]\{4,5\}' | sort -u | tee -a "$LOG_FILE"
 
 log "${GREEN}\n[+] TIP:${NC} Review the listed CVEs on Exploit-DB or Google them to find PoCs and exploitation guides."
 log "${GREEN}    Use tools like searchsploit or exploitdb.com to see if any are local privilege escalation exploits relevant to your kernel.${NC}"
+
+log" "
 
 # ------------------- NETWORK ENUMERATION -------------------
 log "${YELLOW}\n[+] Enumerating Network Interfaces, Open Ports, and Listening Services:${NC}"
@@ -150,6 +155,7 @@ if echo "$LISTENING" | grep -q ':1[0-9][0-9][0-9]'; then
     log "${GREEN}[+] TIP:${NC} High ports detected — might indicate development services or admin tools (e.g., NodeJS, Rails, custom apps). Try connecting directly or scanning for endpoints.${NC}"
 fi
 
+log" "
 
 # ------------------- SUDO PRIVILEGE ESCALATION CHECKS -------------------
 log "${YELLOW}\n[+] Checking Sudo Capabilities:${NC}"
@@ -190,6 +196,8 @@ else
     done
 fi
 
+log" "
+
 # ------------------- COMMAND HISTORY CHECK -------------------
 log "${YELLOW}\n[+] Checking Command History for Sensitive Information:${NC}"
 CMD_HISTORY=$(grep -E "password|passwd|token|apikey|secret|sudo|su |chmod|chown|scp|ssh" ~/.bash_history ~/.zsh_history 2>/dev/null)
@@ -203,6 +211,8 @@ else
     log "${YELLOW}    Secrets or useful patterns may still be stored in non-obvious ways or buried in long command chains.${NC}"
 fi
 
+log" "
+
 # ------------------- USER ENUMERATION -------------------
 log "${YELLOW}\n[+] Enumerating System Users:${NC}"
 getent passwd | awk -F: '{ print $1 " (UID: " $3 ", GID: " $4 ", Home: " $6 ", Shell: " $7 ")" }' | tee -a "$LOG_FILE"
@@ -215,6 +225,8 @@ last -a | head -n 10 | tee -a "$LOG_FILE"
 
 log "${GREEN}\n[+] TIP:${NC} Look for users with UID 0 (root-level), unusual shells (e.g., /bin/sh, /bin/false), or empty home directories."
 log "${GREEN}    These accounts might be service users, misconfigured, or potential escalation targets if they're less secured.${NC}"
+
+log" "
 
 # ------------------- SHADOW FILE ACCESS / PASSWORD REUSE CHECK -------------------
 log "${YELLOW}\n[+] Checking for readable /etc/shadow file:${NC}"
@@ -230,6 +242,8 @@ else
     log "${YELLOW}[-] /etc/shadow is not readable. This is expected on hardened systems.${NC}"
     log "${YELLOW}[+] TIP:${NC} If you're able to escalate to read /etc/shadow later, extract hashes and look for password reuse or weak credentials.${NC}"
 fi
+
+log" "
 
 # ------------------- PACKAGE-BASED BACKDOOR / SHELL DETECTION -------------------
 log "${YELLOW}\n[+] Scanning for suspicious packages or backdoor implants:${NC}"
@@ -266,6 +280,8 @@ if command -v npm &>/dev/null; then
     npm list -g --depth=0 2>/dev/null | grep -Ei 'shell|reverse|payload|rce|backdoor' | tee -a "$LOG_FILE"
 fi
 
+log" "
+
 # ------------------- CRON JOB EXPLOIT CHECK -------------------
 log "${YELLOW}\n[+] Checking for Scheduled Cron Jobs:${NC}"
 CRON_JOBS=$(crontab -l 2>/dev/null; cat /etc/crontab /etc/cron.d/* 2>/dev/null)
@@ -293,6 +309,8 @@ fi
 
 log "${GREEN}\n[+] TIP:${NC} Writable cron jobs or directories can be hijacked to execute arbitrary code as root or another user."
 log "${GREEN}    Look for scripts owned by root or run by privileged accounts — especially if you can modify them or their path dependencies.${NC}"
+
+log" "
 
 # ------------------- SUID & SGID BINARY CHECK -------------------
 log "${YELLOW}\n[+] Searching for SUID binaries:${NC}"
@@ -324,6 +342,8 @@ for BIN in "${GTFO_SUID[@]}"; do
         log "${GREEN}    → Search: https://gtfobins.github.io/gtfobins/$BIN/${NC}"
     fi
 done
+
+log" "
 
 # ------------------- LATERAL MOVEMENT CHECKS -------------------
 log "${YELLOW}\n[+] Checking for Readable Home Directories:${NC}"
@@ -377,6 +397,7 @@ if [[ -n "$WRITABLE_AUTH_KEYS" ]]; then
     AUTH_KEYS_WRITABLE=true
 fi
 
+log" "
 
 # ------------------- CREDENTIAL DISCOVERY -------------------
 
@@ -391,6 +412,8 @@ else
     log "${YELLOW}    Consider manually inspecting key config files in /opt, /etc, and home directories for hidden creds.${NC}"
 fi
 
+log" "
+
 # ------------------- CLOUD CREDENTIAL DISCOVERY -------------------
 log "${YELLOW}\n[+] Checking for cloud provider credentials:${NC}"
 
@@ -402,6 +425,8 @@ DO_CREDS=$(find /home /root -type f -path "*/.config/doctl/*" 2>/dev/null)
 if [[ -n "$AWS_CREDS" || -n "$GCP_CREDS" || -n "$AZURE_CREDS" || -n "$DO_CREDS" ]]; then
     CLOUD_CREDS_FOUND=true
 fi
+
+log" "
 
 # ------------------- FILE PERMISSION EXPLOITATION -------------------
 log "${YELLOW}\n[+] Checking for Writable Security Files:${NC}"
@@ -421,6 +446,9 @@ else
     log "${YELLOW}    You might still find privilege escalation paths through race conditions or poorly isolated services.${NC}"
 fi
 
+
+log" "
+
 # ------------------- ENVIRONMENT VARIABLE SECRETS CHECK -------------------
 log "${YELLOW}\n[+] Checking environment variables for credentials/secrets:${NC}"
 ENV_SECRETS=$(env | grep -iE 'pass|secret|key|token|auth')
@@ -434,6 +462,8 @@ else
     log "${YELLOW}    Environment-based credentials are often used in Docker, cloud, and CI/CD environments.${NC}"
 fi
 
+log" "
+
 # ------------------- WRITABLE INIT/SYSTEMD SCRIPTS CHECK -------------------
 log "${YELLOW}\n[+] Checking for writable startup/init scripts (systemd, init.d):${NC}"
 WRITABLE_STARTUP=$(find /etc/init.d /etc/systemd/system -type f -writable 2>/dev/null)
@@ -445,6 +475,8 @@ if [[ -n "$WRITABLE_STARTUP" ]]; then
 else
     log "${YELLOW}\n[+] TIP:${NC} No writable init/systemd scripts found. But you can still look for custom services or misconfigured units in /etc/systemd/system/.${NC}"
 fi
+
+log" "
 
 # ------------------- COMMON MISCONFIGURATIONS CHECK -------------------
 log "${YELLOW}\n[+] Checking for world-writable directories in \$PATH:${NC}"
@@ -469,6 +501,8 @@ else
     log "${YELLOW}\n[+] TIP:${NC} No LD_PRELOAD or LD_LIBRARY_PATH set in current session, but check for usage in startup scripts or service units.${NC}"
 fi
 
+log" "
+
 # ------------------- BACKGROUND PROCESS / SERVICE OWNERSHIP CHECK -------------------
 log "${YELLOW}\n[+] Checking for suspicious root-owned background processes:${NC}"
 ROOT_PROCS=$(ps -U root -u root u | grep -vE '(^root.*(sshd|bash|systemd|init|kthreadd|ps|grep))')
@@ -482,6 +516,8 @@ else
     log "${YELLOW}\n[+] TIP:${NC} No suspicious root processes found. Consider re-checking inside containers or with full ps aux visibility if access is limited.${NC}"
 fi
 
+log" "
+
 # ------------------- TEMP FOLDER SCRIPT DISCOVERY -------------------
 log "${YELLOW}\n[+] Searching /tmp, /dev/shm, and /var/tmp for scripts or tools:${NC}"
 TMP_SCRIPTS=$(find /tmp /dev/shm /var/tmp -type f \( -iname "*.sh" -o -iname "*.py" -o -iname "*.pl" -o -iname "*.php" -o -iname "*.out" -o -iname "*reverse*" \) 2>/dev/null)
@@ -494,6 +530,8 @@ if [[ -n \"$TMP_SCRIPTS\" ]]; then
 else
     log \"${YELLOW}\\n[+] TIP:${NC} No scripts found in common temp directories. Still worth checking if scripts are being created dynamically or cleaned quickly.${NC}\"
 fi
+
+log" "
 
 # ------------------- SOCKET FILE & DAEMON EXPOSURE CHECK -------------------
 log "${YELLOW}\n[+] Checking for Unix domain sockets (.sock files) and potentially exposed daemons:${NC}"
@@ -519,6 +557,8 @@ if [[ -n "$SOCKET_FILES" ]]; then
     SOCKETS_FOUND=true
 fi
 
+log" "
+
 # ------------------- BINARY CAPABILITY CHECK -------------------
 log "${YELLOW}\n[+] Checking for unusual binary capabilities (via getcap):${NC}"
 BIN_CAPS=$(getcap -r / 2>/dev/null | grep -v '^$')
@@ -530,6 +570,8 @@ if [[ -n "$BIN_CAPS" ]]; then
 else
     log "${YELLOW}\n[+] TIP:${NC} No binaries with special capabilities found. Still, review newly installed tools or custom paths just in case.${NC}"
 fi
+
+log" "
 
 # ------------------- HIGH-LEVEL FINDINGS SUMMARY -------------------
 log "${BLUE}\n[*] High-Level Summary of Key Findings:${NC}"
@@ -590,10 +632,11 @@ if getcap -r / 2>/dev/null | grep -q .; then
     log "${GREEN}[+] Binaries with Capabilities Found (getcap)${NC}"
 fi
 
+log" "
 log "${BLUE}==============================================================${NC}"
 log "${BLUE}[*] End of Summary — use these leads to guide your next steps.${NC}"
 log "${BLUE}==============================================================${NC}"
-
+log " "
 
 
 # ------------------- ENUMERATION COMPLETED -------------------
